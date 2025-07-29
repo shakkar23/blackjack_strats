@@ -6,6 +6,7 @@
 #include "./player/random_player.hpp"
 #include "./player/normal_player.hpp"
 #include "./player/stand_player.hpp"
+#include "./player/basic_strat_player.hpp"
 
 #include "./player/game_view.hpp"
 #include "hand_scoring.hpp"
@@ -19,7 +20,7 @@
 namespace BlackJack {
 	template <typename game_rules>
 	struct game {
-		using player_variant = std::variant<random_player<game_rules>, normal_player<game_rules>, stand_player<game_rules>>;
+		using player_variant = std::variant<random_player<game_rules>, normal_player<game_rules>, stand_player<game_rules>, BS_player<game_rules>>;
 		game(int seed = 0)
 			: rng(seed) {
 			shoe.new_shoe(game_rules::num_decks);
@@ -177,6 +178,7 @@ namespace BlackJack {
 						break;
 					case Action::DoubleDown:
 						(*bet_amount) *= 2;
+						draw_card(*player_hand);
 						continue_playing = false;
 						break;
 					case Action::Split:

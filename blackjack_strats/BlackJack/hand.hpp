@@ -48,6 +48,26 @@ namespace BlackJack {
 			return cards[index];
 		}
 
+		inline [[nodiscard]] bool is_soft() const noexcept {
+			int score = 0;
+			int aces = 0;
+			
+			for (const auto& card : cards) {
+				int card_score = score_card(card);
+				score += card_score;
+				if (card.rank == Rank::Ace) {
+					aces++;
+				}
+			}
+
+			while (score > 21 && aces > 0) {
+				score -= 10; // Convert Ace from 11 to 1
+				aces--;
+			}
+
+			return aces > 0;
+		}
+
 	private:
 		std::vector<Card> cards;
 	};

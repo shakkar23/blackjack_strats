@@ -12,7 +12,7 @@ int main()
 	BlackJack::game<BlackJack::standard_game_rules> gamington(time(0));
 	for (int epoch = 0; epoch < 300; epoch++) {
 		for (int i = 0; i < 10; ++i)
-			gamington.add_player(BlackJack::normal_player<BlackJack::standard_game_rules>{});
+			gamington.add_player(BlackJack::BS_player<BlackJack::standard_game_rules>{});
 
 		for (int i = 0; i < 100; ++i) {
 			gamington.play_round();
@@ -49,7 +49,19 @@ int main()
 			good_count += count;
 	}
 
-	std::cout << "Bad players: " << bad_count << ", Good players: " << good_count << '\n';
+	std::cout << "Bad players: " << bad_count << ", Good players: " << good_count << '\n' << '\n';
+
+	// count all the money and print the average money return
+	int total_money = 0;
+	for (auto& [money, count] : sorted_data) {
+		total_money += money * count;
+	}
+	int total_players = 0;
+	for (auto& [money, count] : sorted_data) {
+		total_players += count;
+	}
+	std::cout << "Total money: " << total_money << ", Total players: " << total_players << '\n';
+	std::cout << "Average money return: " << static_cast<double>(total_money) / total_players << '\n';
 
 	return 0;
 }

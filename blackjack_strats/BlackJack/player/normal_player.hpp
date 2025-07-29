@@ -1,3 +1,4 @@
+#pragma once
 #include "action.hpp"
 #include "../hand.hpp"
 #include "game_view.hpp"

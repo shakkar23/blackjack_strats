@@ -7,8 +7,7 @@
 
 namespace BlackJack
 {
-	int score_hand(const Hand& hand) noexcept
-	{
+	int score_hand(const Hand& hand) noexcept {
 		int score = 0;
 		int aces = 0;
 		for (const auto& card : hand.getCards())
