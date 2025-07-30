@@ -2,8 +2,8 @@
 
 namespace BlackJack {
 	struct standard_game_rules {
-		static constexpr int min_bet = 1;
-		static constexpr int max_bet = 1000;
+		static constexpr int min_bet = 5;
+		static constexpr int max_bet = 100;
 		static constexpr int dealer_stand_threshold = 17;
 		static constexpr float natural_blackjack_payout = 1.5f; // 3:2 payout for natural blackjack
 		static constexpr float blackjack_payout = 3.f / 2.f; // 3:2 payout for blackjack

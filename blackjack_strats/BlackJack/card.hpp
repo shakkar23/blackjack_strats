@@ -26,8 +26,9 @@ namespace BlackJack {
 	};
 
 	struct Card {
+	public:
 		Suit suit;
 		Rank rank;
-		Card(Suit s, Rank r) : suit(s), rank(r) {}
+		//Card(Suit s, Rank r) : suit(s), rank(r) {}
 	};
 };

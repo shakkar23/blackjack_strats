@@ -28,6 +28,14 @@ namespace BlackJack {
 			}
 		}
 
-		int money = 1000; // Starting money for the player
+		void resolve_bet(int amount) {
+			money += amount;
+		}
+
+		void resolve_sidebet(int amount) {
+			money += amount;
+		}
+
+		int money = 0; // Starting money for the player
 	};
 };

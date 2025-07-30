@@ -6,22 +6,15 @@
 #include "../value/hand_scoring.hpp"
 #include "../value/hilo.hpp"
 
-#include <variant>
-
 namespace BlackJack {
 	template <typename game_rules>
-	struct stand_player {
+	struct split_player {
 
 		struct datum {
 			float true_count;
 			Card dealer_upcard;
 			Hand player_hand;
 		};
-		struct result {
-			int amount_won;
-		};
-
-		using datas = std::variant<datum, result>;
 
 		int get_bet_amount() const {
 			return 10; // Fixed bet amount for simplicity
@@ -32,16 +25,19 @@ namespace BlackJack {
 		}
 
 		Action get_action(const game_view<game_rules>& view, const Hand& player_hand) {
-			if (data.size() == 0 or std::holds_alternative<result>(data.back()))
-				data.push_back(datum{ view.true_count(), view.dealer_upcard, player_hand});
-			else
-				std::get<datum>(data.back()) = datum{ view.true_count(), view.dealer_upcard, player_hand };
+			if (player_hand.can_split())
+			{
+				if (data.size() > view.stats.rounds_played_count())
+					data[view.stats.rounds_played_count()] = datum{ view.true_count(), view.dealer_upcard, player_hand };
+				else
+					data.push_back(datum{ view.true_count(), view.dealer_upcard, player_hand });
+				return Action::Split;
+			}
 
 			return Action::Stand;
 		}
 
 		void resolve_bet(int amount) {
-			data.push_back(result{ amount });
 			money += amount;
 		}
 
@@ -50,6 +46,6 @@ namespace BlackJack {
 		}
 
 		int money = 0; // Starting money for the player
-		std::vector<datas> data;
+		std::vector<datum> data;
 	};
 };

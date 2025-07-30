@@ -3,19 +3,19 @@
 #include "action.hpp"
 #include "../hand.hpp"
 #include "game_view.hpp"
-#include "../hand_scoring.hpp"
+#include "../value/hand_scoring.hpp"
 
 #include <stdexcept>
 
 namespace BlackJack {
 	template <typename game_rules>
 	struct BS_player {
-		int get_bet_amount() const {
-			return 10; // Fixed bet amount for simplicity
+		int get_bet_amount() const  noexcept {
+			return 10;
 		}
 
-		int get_insurance_amount(const game_view<game_rules>& view) const {
-			return 0; // No insurance for this player
+		int get_insurance_amount(const game_view<game_rules>& view) const noexcept {
+			return 0;
 		}
 
 		Action get_action(const game_view<game_rules>& view, const Hand& player_hand) const {
@@ -115,6 +115,7 @@ namespace BlackJack {
 					case BlackJack::Rank::Ace:
 						return Action::Hit;
 					}
+					throw std::runtime_error("Unexpected case for score 2-3");
 				case 4:
 				case 5:
 					switch (view.dealer_upcard.rank) {
@@ -135,6 +136,7 @@ namespace BlackJack {
 					case BlackJack::Rank::Ace:
 						return Action::Hit;
 					}
+					throw std::runtime_error("Unexpected case for score 4-5");
 				case 6:
 					switch (view.dealer_upcard.rank) {
 					case BlackJack::Rank::Three:
@@ -154,7 +156,7 @@ namespace BlackJack {
 					case BlackJack::Rank::Ace:
 						return Action::Hit;
 					}
-					break;
+					throw std::runtime_error("Unexpected case for score 6");
 				case 7:
 					switch (view.dealer_upcard.rank) {
 					case BlackJack::Rank::Two:
@@ -174,11 +176,11 @@ namespace BlackJack {
 					case BlackJack::Rank::Ace:
 						return Action::Hit;
 					}
+					throw std::runtime_error("Unexpected case for score 7");
 				case 8:
 				case 9:
 				case 10:
 					return Action::Stand;
-					break;
 
 				default:
 					throw std::runtime_error("Unexpected soft hand value: " + std::to_string(other_card_value));
@@ -210,6 +212,7 @@ namespace BlackJack {
 				case BlackJack::Rank::Ace:
 					return Action::Hit;
 				}
+				throw std::runtime_error("Unexpected case for score 9");
 			case 10:
 				switch (view.dealer_upcard.rank) {
 				case BlackJack::Rank::Two:
@@ -228,6 +231,7 @@ namespace BlackJack {
 				case BlackJack::Rank::Ace:
 					return Action::Hit;
 				}
+				throw std::runtime_error("Unexpected case for score 10");
 			case 11:
 				switch (view.dealer_upcard.rank) {
 				case BlackJack::Rank::Two:
@@ -246,6 +250,7 @@ namespace BlackJack {
 				case BlackJack::Rank::Ace:
 					return Action::Hit;
 				}
+				throw std::runtime_error("Unexpected case for score 11");
 			case 12:
 				switch (view.dealer_upcard.rank) {
 				case BlackJack::Rank::Four:
@@ -264,6 +269,7 @@ namespace BlackJack {
 				case BlackJack::Rank::Ace:
 					return Action::Hit;
 				}
+				throw std::runtime_error("Unexpected case for score 12");
 			case 13:
 			case 14:
 			case 15:
@@ -285,6 +291,7 @@ namespace BlackJack {
 				case BlackJack::Rank::Ace:
 					return Action::Hit;
 				}
+				throw std::runtime_error("Unexpected case for score 13-16");
 			case 17:
 			case 18:
 			case 19:
@@ -292,9 +299,8 @@ namespace BlackJack {
 			case 21:
 				return Action::Stand;
 			default:
+				throw std::runtime_error("Unexpected case for score 13-16");
 				break;
-
-
 			}
 			
 
@@ -302,6 +308,13 @@ namespace BlackJack {
 			return Action::Stand;
 		}
 
-		int money = 1000; // Starting money for the player
+		void resolve_bet(int amount) {
+			money += amount;
+		}
+
+		void resolve_sidebet(int amount) {
+			money += amount;
+		}
+		int money = 0; // Starting money for the player
 	};
 };

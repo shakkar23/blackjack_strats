@@ -6,12 +6,9 @@
 #include "../value/hand_scoring.hpp"
 #include "../value/hilo.hpp"
 
-#include <variant>
-
 namespace BlackJack {
 	template <typename game_rules>
-	struct stand_player {
-
+	struct doubledown_player {
 		struct datum {
 			float true_count;
 			Card dealer_upcard;
@@ -33,11 +30,11 @@ namespace BlackJack {
 
 		Action get_action(const game_view<game_rules>& view, const Hand& player_hand) {
 			if (data.size() == 0 or std::holds_alternative<result>(data.back()))
-				data.push_back(datum{ view.true_count(), view.dealer_upcard, player_hand});
+				data.push_back(datum{ view.true_count(), view.dealer_upcard, player_hand });
 			else
 				std::get<datum>(data.back()) = datum{ view.true_count(), view.dealer_upcard, player_hand };
 
-			return Action::Stand;
+			return Action::DoubleDown;
 		}
 
 		void resolve_bet(int amount) {

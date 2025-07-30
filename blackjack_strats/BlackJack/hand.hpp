@@ -1,7 +1,7 @@
 #pragma once
 
 #include "card.hpp"
-#include "card_scoring.hpp"
+#include "value/card_scoring.hpp"
 
 #include <vector>
 #include <expected>
@@ -70,5 +70,6 @@ namespace BlackJack {
 
 	private:
 		std::vector<Card> cards;
+		friend struct glz::meta<BlackJack::Hand>;
 	};
 };

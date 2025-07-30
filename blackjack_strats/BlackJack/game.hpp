@@ -5,11 +5,16 @@
 #include "game_rules.hpp"
 #include "./player/random_player.hpp"
 #include "./player/normal_player.hpp"
-#include "./player/stand_player.hpp"
 #include "./player/basic_strat_player.hpp"
+#include "./player/stand_player.hpp"
+#include "./player/doubledown_player.hpp"
+#include "./player/split_player.hpp"
+#include "./player/hit_player.hpp"
 
 #include "./player/game_view.hpp"
-#include "hand_scoring.hpp"
+#include "value/hand_scoring.hpp"
+
+#include "stats.hpp"
 
 #include <random>
 #include <ranges>
@@ -20,7 +25,15 @@
 namespace BlackJack {
 	template <typename game_rules>
 	struct game {
-		using player_variant = std::variant<random_player<game_rules>, normal_player<game_rules>, stand_player<game_rules>, BS_player<game_rules>>;
+		using player_variant = std::variant<
+			random_player<game_rules>, 
+			normal_player<game_rules>, 
+			stand_player<game_rules>, 
+			BS_player<game_rules>,
+			doubledown_player<game_rules>,
+			split_player<game_rules>,
+			hit_player<game_rules>
+		>;
 		game(int seed = 0)
 			: rng(seed) {
 			shoe.new_shoe(game_rules::num_decks);
@@ -38,16 +51,15 @@ namespace BlackJack {
 			{
 				for (auto& player : players) {
 					int bet_amount = std::visit([](auto&& p) { return p.get_bet_amount(); }, player);
-					std::visit([bet_amount](auto&& p) { p.money -= bet_amount; }, player);
+					//std::visit([bet_amount](auto&& p) { p.money -= bet_amount; }, player);
 					player_bets.push_back(std::vector<int>{ bet_amount });
 				}
 			}
 
 			// re-shuffle deck if needed
-			size_t deck_cutter_thingy = game_rules::num_decks * 52 * game_rules::reshuffle_threshold;
+			size_t deck_cutter_thingy = size_t(game_rules::num_decks * 52 * game_rules::reshuffle_threshold);
 			if (shoe.num_cards() <= deck_cutter_thingy) {
-				shoe.new_shoe(game_rules::num_decks);
-				shoe.shuffle(rng);
+				reset_shoe();
 			}
 			
 			// draw dealer cards
@@ -68,15 +80,15 @@ namespace BlackJack {
 			std::vector<int> insurance_bets;
 			if (int score = score_card(dealer_hand[0]); score == 11) {
 				// construct game view
-				game_view<game_rules> view{ dealer_hand[0], player_hands };
+				game_view<game_rules> view{ dealer_hand[0], player_hands, stats };
 				for (auto& player : players) {
 					int insurance_bet = std::visit([view](auto&& p) { return p.get_insurance_amount(view); }, player);
 					insurance_bets.push_back(insurance_bet);
-					std::visit([insurance_bet](auto&& p) { p.money -= insurance_bet; }, player);
+					//std::visit([insurance_bet](auto&& p) { p.money -= insurance_bet; }, player);
 				}
 			}
 
-			game_view<game_rules> view{ dealer_hand[0], player_hands };
+			game_view<game_rules> view{ dealer_hand[0], player_hands, stats };
 
 			std::vector<bool> natural_blackjack(players.size(), false);
 
@@ -98,50 +110,57 @@ namespace BlackJack {
 
 			// Resolve bets
 			for (size_t player_iter = 0; player_iter < players.size(); ++player_iter) {
+				int upfront_money_acc = std::accumulate(player_bets[player_iter].begin(), player_bets[player_iter].end(), 0);
+				int upfront_sidebet_acc = (insurance_bets.size() > 0) ? insurance_bets[player_iter] : 0;
+
+				int total_acc = 0;
+				int sidebet_acc = 0;
+
 				// player has a natural blackjack and also the dealer has a natural blackjack
 				if (player_hands[player_iter].size() == 1 and score_hand(player_hands[player_iter][0]) == 21) {
 					if (!dealer_natural_blackjack) {
-						// give pay ratio to player for natural bj
-						std::visit([&](auto&& p) {
-							p.money += static_cast<int>(player_bets[player_iter][0] * (game_rules::natural_blackjack_payout + 1));
-						}, players[player_iter]);
-					}
-					continue;
-				}
-
-				if (insurance_bets.size() > 0) {
-					if (dealer_natural_blackjack) {
-						std::visit([&](auto&& p) {
-							p.money += static_cast<int>(insurance_bets[player_iter] * game_rules::insurance_payout);
-						}, players[player_iter]);
-					}
-					else {
-						std::visit([&](auto&& p) {
-							p.money -= insurance_bets[player_iter];
-						}, players[player_iter]);
+						total_acc += (static_cast<int>(player_bets[player_iter][0] * game_rules::natural_blackjack_payout));
 					}
 				}
-
-				if (!dealer_natural_blackjack)
-					for (auto [player_hand, player_bet] : std::views::zip(player_hands[player_iter], player_bets[player_iter])) {
-						int score = score_hand(player_hand);
-						if (score > 21)
-							continue;
-
-						if (score == dealer_score) {
-							std::visit([&](auto&& p) {
-								p.money += player_bet;
-							}, players[player_iter]);
+				else {
+					if (insurance_bets.size() > 0) {
+						if (dealer_natural_blackjack) {
+							insurance_bets[player_iter] *= game_rules::insurance_payout;
 						}
-						else if (dealer_score > 21 || score > dealer_score) {
-							std::visit([&](auto&& p) {
-								p.money += player_bet * 2;
-							}, players[player_iter]);
+						else {
+							sidebet_acc -= insurance_bets[player_iter];
 						}
-
 					}
+
+					if (!dealer_natural_blackjack) {
+						for (auto [player_hand, player_bet] : std::views::zip(player_hands[player_iter], player_bets[player_iter])) {
+							int score = score_hand(player_hand);
+							if (score > 21)
+								continue;
+
+							if (score == dealer_score) {
+								total_acc += player_bet;
+							}
+							else if (dealer_score > 21 || score > dealer_score) {
+								total_acc += player_bet * 2;
+							}
+							else {
+								// losing is implied if you dont get any profit
+							}
+
+						}
+					}
+				}
+				// resolve bets
+				std::visit([&](auto&& p) {
+					p.resolve_bet(total_acc - upfront_money_acc);
+				}, players[player_iter]);
+				// resolve sidebets
+				std::visit([&](auto&& p) {
+					p.resolve_sidebet(sidebet_acc - upfront_sidebet_acc);
+				}, players[player_iter]);
 			}
-
+			stats.increment_rounds();
 		}
 
 		inline void play_player_hands(
@@ -171,9 +190,10 @@ namespace BlackJack {
 						break;
 					case Action::Surrender:
 						// Player loses half their bet
-						std::visit([&](auto&& p) { p.money -= (*bet_amount) / 2; }, players[player_iter]);
+						// std::visit([&](auto&& p) { p.money -= (*bet_amount) / 2; }, players[player_iter]);
 						// Player forfeits the hand
-						(*bet_amount) = 0;
+						(*bet_amount) /= 2;
+						(*player_hand).clear();
 						continue_playing = false;
 						break;
 					case Action::DoubleDown:
@@ -190,7 +210,7 @@ namespace BlackJack {
 								draw_card(split_hand.value());
 
 								// remove the bet amount from the player
-								std::visit([bet_amount](auto&& p) { p.money -= *bet_amount; }, players[player_iter]);
+								// std::visit([bet_amount](auto&& p) { p.money -= *bet_amount; }, players[player_iter]);
 
 								// add to the player hands and bets
 								player_bets[player_iter].push_back(*bet_amount);
@@ -213,6 +233,7 @@ namespace BlackJack {
 		inline void draw_card(Hand& hand, const std::source_location& location = std::source_location::current()) {
 			auto card = shoe.draw();
 			if (card.has_value()) {
+				stats.process_card(card.value());
 				hand.addCard(card.value());
 			}
 			else {
@@ -238,10 +259,18 @@ namespace BlackJack {
 			shoe.new_shoe(game_rules::num_decks);
 			shoe.shuffle(rng);
 			players.clear();
+			stats.reset();
+		}
+
+		inline void reset_shoe() {
+			shoe.new_shoe(game_rules::num_decks);
+			shoe.shuffle(rng);
+			stats.reset();
 		}
 	private:
 		Deck shoe;
 		std::vector<player_variant> players;
 		std::linear_congruential_engine<std::uint32_t, 0x5d588b65, 0x269ec3, 0> rng;
+		statistics stats;
 	};
 };

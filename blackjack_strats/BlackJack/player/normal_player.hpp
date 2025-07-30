@@ -2,7 +2,7 @@
 #include "action.hpp"
 #include "../hand.hpp"
 #include "game_view.hpp"
-#include "../hand_scoring.hpp"
+#include "../value/hand_scoring.hpp"
 
 namespace BlackJack {
 	template <typename game_rules>
@@ -23,6 +23,14 @@ namespace BlackJack {
 			return Action::Stand;
 		}
 
-		int money = 1000; // Starting money for the player
+		void resolve_bet(int amount) {
+			money += amount;
+		}
+
+		void resolve_sidebet(int amount) {
+			money += amount;
+		}
+
+		int money = 0; // Starting money for the player
 	};
 };
