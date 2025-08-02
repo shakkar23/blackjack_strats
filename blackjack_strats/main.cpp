@@ -1,13 +1,14 @@
-﻿// blackjack_strats.cpp : Defines the entry point for the application.
-//
-#include <glaze/glaze.hpp>
+﻿#include <glaze/glaze.hpp>
 
 #include "BlackJack/game.hpp"
 #include "BlackJack/card.hpp"
 
+#include <array>
+#include <bit>
 #include <iostream>
 #include <unordered_map>
 #include <vector>
+#include <map>
 #include <fstream>
 #include <variant>
 
@@ -20,100 +21,130 @@ struct data_stuff {
 	int amount_won;
 };
 
-// glaze stuff for serde
-template <>
-struct glz::meta<data_stuff> {
-	using T = data_stuff;
-	static constexpr auto value = object(
-		&T::action,
-		&T::true_count,
-		&T::dealer_upcard,
-		&T::player_hand,
-		&T::amount_won
-	);
+struct data_column {
+	long long two;
+	long long three;
+	long long four;
+	long long five;
+	long long six;
+	long long seven;
+	long long eight;
+	long long nine;
+	long long ten;
+	long long ace;
 };
 
-template <>
-struct glz::meta<BlackJack::Card> {
-	using T = BlackJack::Card;
-	static constexpr auto value = object(
-		&T::suit,
-		&T::rank
-	);
+struct ev_column {
+	double two;
+	double three;
+	double four;
+	double five;
+	double six;
+	double seven;
+	double eight;
+	double nine;
+	double ten;
+	double ace;
 };
 
-// suit meta 
-template<>
-struct glz::meta<BlackJack::Suit> {
-	using T = BlackJack::Suit;
-	static constexpr auto value = glz::enumerate(
-		BlackJack::Suit::Hearts,
-		BlackJack::Suit::Diamonds,
-		BlackJack::Suit::Clubs,
-		BlackJack::Suit::Spades
-	);
+static long long data_column::* rank_to_chart_index(BlackJack::Rank rank) {
+	switch (rank) {
+	case BlackJack::Rank::Two: return &data_column::two;
+	case BlackJack::Rank::Three: return &data_column::three;
+	case BlackJack::Rank::Four: return &data_column::four;
+	case BlackJack::Rank::Five: return &data_column::five;
+	case BlackJack::Rank::Six: return &data_column::six;
+	case BlackJack::Rank::Seven: return &data_column::seven;
+	case BlackJack::Rank::Eight: return &data_column::eight;
+	case BlackJack::Rank::Nine: return &data_column::nine;
+	case BlackJack::Rank::Ten: return &data_column::ten;
+	case BlackJack::Rank::Jack: return &data_column::ten;
+	case BlackJack::Rank::Queen: return &data_column::ten;
+	case BlackJack::Rank::King: return &data_column::ten;
+	case BlackJack::Rank::Ace: return &data_column::ace;
+	default:
+		throw std::runtime_error("Invalid rank for chart index");
+	}
+}
+
+static int action_to_index(BlackJack::Action a) {
+	switch (a)
+	{
+	case BlackJack::Action::Hit:
+		return 0;
+	case BlackJack::Action::Stand:
+		return 1;
+	case BlackJack::Action::DoubleDown:
+		return 2;
+	case BlackJack::Action::Split:
+	case BlackJack::Action::Surrender:
+	default:
+		throw std::runtime_error("Invalid Action!");
+	}
+}
+static BlackJack::Action index_to_action(int index) {
+	switch (index) {
+	case 0:
+		return BlackJack::Action::Hit;
+	case 1:
+		return BlackJack::Action::Stand;
+	case 2:
+		return BlackJack::Action::DoubleDown;
+
+	default:
+		throw std::runtime_error("bad index");
+	}
+}
+
+struct chart {
+public:
+	// score to dealer upcard, value is 
+	std::array<data_column, 21> hard_chart_counts{};
+	std::array<data_column, 21> hard_chart{};
+	// accumulation of score minus extra ace to dealer upcard
+	std::array<data_column, 10> soft_chart_counts{};
+	std::array<data_column, 10> soft_chart{};
 };
 
-// rank meta
-template<>
-struct glz::meta<BlackJack::Rank> {
-	using T = BlackJack::Rank;
-	static constexpr auto value = glz::enumerate(
-		BlackJack::Rank::Ace,
-		BlackJack::Rank::Two,
-		BlackJack::Rank::Three,
-		BlackJack::Rank::Four,
-		BlackJack::Rank::Five,
-		BlackJack::Rank::Six,
-		BlackJack::Rank::Seven,
-		BlackJack::Rank::Eight,
-		BlackJack::Rank::Nine,
-		BlackJack::Rank::Ten,
-		BlackJack::Rank::Jack,
-		BlackJack::Rank::Queen,
-		BlackJack::Rank::King
-	);
-};
+static void log(std::map<int, std::array<chart, 3>>& tc_to_chart, data_stuff& results) {
+	int score = BlackJack::score_hand(results.player_hand);
+	int action_index = action_to_index(results.action);
+	bool is_soft = results.player_hand.is_soft();
+	long long data_column::* upcard_offset = rank_to_chart_index(results.dealer_upcard.rank);
 
-template<>
-struct glz::meta<BlackJack::Action> {
-	using T = BlackJack::Action;
-	static constexpr auto value = glz::enumerate(
-		BlackJack::Action::Hit,
-		BlackJack::Action::Stand,
-		BlackJack::Action::DoubleDown,
-		BlackJack::Action::Split,
-		BlackJack::Action::Surrender
-	);
-};
+	auto& chart = tc_to_chart[(size_t)std::round(results.true_count)][action_index];
 
-template <>
-struct glz::meta<BlackJack::Hand> {
-	using T = BlackJack::Hand;
-	static constexpr auto value = object(
-		&T::cards
-	);
-};
-
-std::vector<data_stuff> data;
+	if (is_soft) {
+		chart.soft_chart_counts[score - 11 - 1].*upcard_offset += 1;
+		chart.soft_chart[score - 11 - 1].*upcard_offset += results.amount_won;
+	}
+	else {
+		chart.hard_chart_counts[score - 1].*upcard_offset += 1;
+		chart.hard_chart[score - 1].*upcard_offset += results.amount_won;
+	}
+}
 
 int datagen()
 {
 	BlackJack::game<BlackJack::standard_game_rules> gamington((int)time(0));
+	std::map<int, std::array<chart,3>> true_count_to_chart;
 
-	for (int epoch = 0; epoch < 20'000 * 3; epoch++) {
+	constexpr long long num_games = 20'000'000ll;
+	for (long long epoch = 0; epoch < num_games; epoch++) {
 		gamington.add_player(BlackJack::stand_player<BlackJack::standard_game_rules>{});
 		gamington.add_player(BlackJack::hit_player<BlackJack::standard_game_rules>{});
 		gamington.add_player(BlackJack::doubledown_player<BlackJack::standard_game_rules>{});
 		gamington.add_player(BlackJack::stand_player<BlackJack::standard_game_rules>{});
 		gamington.add_player(BlackJack::hit_player<BlackJack::standard_game_rules>{});
 		gamington.add_player(BlackJack::doubledown_player<BlackJack::standard_game_rules>{});
+		
+		gamington.randomize_players();
 
 		for (int i = 0; i < 100; ++i) {
 			gamington.play_round();
 		}
-
-		for (int j = 0; j < gamington.get_players().size(); j++) {
+		long long count = 0;
+		for (auto&players : gamington.get_players()) {
 			std::visit([&](auto&& player) {
 				using PlayerType = std::decay_t<decltype(player)>;
 				if constexpr (std::is_same_v<PlayerType, BlackJack::stand_player<BlackJack::standard_game_rules>>) {
@@ -126,7 +157,8 @@ int datagen()
 							}
 							else if constexpr (std::is_same_v<U, PlayerType::result>) {
 								results.amount_won = p.amount_won;
-								data.push_back(results);
+								log(true_count_to_chart, results);
+								count++;
 							}
 						}, d);
 					}
@@ -140,7 +172,8 @@ int datagen()
 							}
 							else if constexpr (std::is_same_v<U, PlayerType::result>) {
 								results.amount_won = p.amount_won;
-								data.push_back(results);
+								log(true_count_to_chart, results);
+								count++;
 							}
 							}, d);
 					}
@@ -150,118 +183,90 @@ int datagen()
 						std::visit([&](auto&& p) {
 							using U = std::decay_t<decltype(p)>;
 							if constexpr (std::is_same_v<U, PlayerType::datum>) {
-								results = { BlackJack::Action::Stand, p.true_count, p.dealer_upcard, p.player_hand };
+								results = { BlackJack::Action::DoubleDown, p.true_count, p.dealer_upcard, p.player_hand };
 							}
 							else if constexpr (std::is_same_v<U, PlayerType::result>) {
 								results.amount_won = p.amount_won;
-								data.push_back(results);
+								log(true_count_to_chart, results);
+								count++;
 							}
 							}, d);
 					}
 				}
-			}, gamington.get_players()[j]);
+			}, players);
 		}
 
 		gamington.reset();
 	}
-
-
+	
 	std::string buffer{};
-	auto ec = glz::write_file_beve(data, "data.beve", buffer);
+	for (auto& [key, value] : true_count_to_chart) {
+		for (int i = 0; i < 3; i++) {
+			BlackJack::Action action = index_to_action(i);
+			std::string action_str;
+			auto ec = glz::write_json(action, action_str);
+			action_str = action_str.substr(1, action_str.size() - 2);
+			std::array<ev_column, 10> ev{};
+			std::array<ev_column, 21> hard_ev{};
 
-	if (ec) {
-		std::string descriptive_error = glz::format_error(ec, buffer);
-		std::cerr << "Error writing file: " << descriptive_error << std::endl;
-		return 1;
+			for (int j = 0; j < 10; j++) {
+				std::array<long long, 10> chart_vals = std::bit_cast<std::array<long long, 10>>(value[i].soft_chart[j]);
+				std::array<long long, 10> chart_counts = std::bit_cast<std::array<long long, 10>>(value[i].soft_chart_counts[j]);
+				std::array<double, 10> ev_vals{};
+
+				for (int k = 0; k < 10; k++) {
+					ev_vals[k] = (double)chart_vals[k] / (double)chart_counts[i];
+					ev_vals[k] /= 10.0;
+				}
+
+				ev[j] = std::bit_cast<ev_column>(ev_vals);
+			}
+
+
+			for (int j = 0; j < 21; j++) {
+				std::array<long long, 10> chart_vals = std::bit_cast<std::array<long long, 10>>(value[i].hard_chart[j]);
+				std::array<long long, 10> chart_counts = std::bit_cast<std::array<long long, 10>>(value[i].hard_chart_counts[j]);
+				std::array<double, 10> ev_vals{};
+
+				for (int k = 0; k < 10; k++) {
+					ev_vals[k] = (double)chart_vals[k] / (double)chart_counts[i];
+					ev_vals[k] /= 10.0;
+				}
+
+				hard_ev[j] = std::bit_cast<ev_column>(ev_vals);
+			}
+
+			std::string file_name = "hard_chart_" + action_str + "_" + std::to_string(key) + ".csv";
+			auto error = glz::write_file_csv(hard_ev, file_name, buffer);
+			buffer.clear();
+			if (error) {
+				std::cout << glz::format_error(error.ec) << std::endl;
+				std::cout << file_name << std::endl;
+			}
+			
+			file_name = "soft_chart_" + action_str + "_" + std::to_string(key) + ".csv";
+			error = glz::write_file_csv(ev, file_name, buffer);
+			buffer.clear();
+		
+			if (error) {
+				std::cout << glz::format_error(error.ec) << std::endl;
+				std::cout << file_name << std::endl;
+			}
+		}
 	}
+
 	return 0;
 }
 
-int rank_to_chart_index(BlackJack::Rank rank) {
-	switch (rank) {
-	case BlackJack::Rank::Two: return 0;
-	case BlackJack::Rank::Three: return 1;
-	case BlackJack::Rank::Four: return 2;
-	case BlackJack::Rank::Five: return 3;
-	case BlackJack::Rank::Six: return 4;
-	case BlackJack::Rank::Seven: return 5;
-	case BlackJack::Rank::Eight: return 6;
-	case BlackJack::Rank::Nine: return 7;
-	case BlackJack::Rank::Ten: return 8;
-	case BlackJack::Rank::Jack: return 8;
-	case BlackJack::Rank::Queen: return 8;
-	case BlackJack::Rank::King: return 8;
-	case BlackJack::Rank::Ace: return 9;
-	default: throw std::runtime_error("Invalid rank");
-	}
-}
+#include <chrono>
 
 int main() {
-	// read the beve file, and deserialize it
-	// assume the data is already created
-	//datagen();
-	std::vector<data_stuff> deserialized_data{};
-	std::string buffer{};
-	auto ec = glz::read_file_beve(deserialized_data, "data.beve", buffer);
-	if (ec) {
-		std::string descriptive_error = glz::format_error(ec, buffer);
-		std::cerr << "Error reading beve: " << descriptive_error << std::endl;
-		return 1;
-	}
-	std::cout << deserialized_data.size();
-	// make a basic strategy chart for non splitting and accumulate all of the winnings to this chart
-	std::array<std::array<int, 21>, 10> hard_chart_hit{};
-	std::array<std::array<int, 21>, 10> hard_chart_double{};
-	std::array<std::array<int, 21>, 10> hard_chart_stand{};
-	// hard_chart[dealer_upcard][player_hand_score] = winnings
-	std::array<std::array<int, 10>, 10> soft_chart_hit{};
-	std::array<std::array<int, 10>, 10> soft_chart_double{};
-	std::array<std::array<int, 10>, 10> soft_chart_stand{};
-	// soft_chart[dealer_upcard][player_hand_score] = winnings
+	auto before = std::chrono::high_resolution_clock::now();
+	datagen();
+	auto after = std::chrono::high_resolution_clock::now();
 
-	for (const auto& d : deserialized_data) {
-		int score = BlackJack::score_hand(d.player_hand);
-		int dealer_upcard_index = rank_to_chart_index(d.dealer_upcard.rank);
-		if(d.action == BlackJack::Action::Hit) {
-			if (d.player_hand.is_soft()) {
-				soft_chart_hit[dealer_upcard_index][score] += d.amount_won;
-			}
-			else {
-				hard_chart_hit[dealer_upcard_index][score] += d.amount_won;
-			}
-		}
-		else if (d.action == BlackJack::Action::DoubleDown) {
-			if (d.player_hand.is_soft()) {
-				soft_chart_double[dealer_upcard_index][score] += d.amount_won;
-			}
-			else {
-				hard_chart_double[dealer_upcard_index][score] += d.amount_won;
-			}
-		}
-		else if (d.action == BlackJack::Action::Stand) {
-			if (d.player_hand.is_soft()) {
-				soft_chart_stand[dealer_upcard_index][score] += d.amount_won;
-			}
-			else {
-				hard_chart_stand[dealer_upcard_index][score] += d.amount_won;
-			}
-		}
-	}
+	std::chrono::duration<double, std::ratio<1,1>> time_spent = after - before;
 
-	// output 6 CSVs with the data using glaze
-
-	glz::write_file_csv(hard_chart_hit, "hard_chart_hit.csv", std::string{});
-
-	glz::write_file_csv(hard_chart_double, "hard_chart_double.csv", std::string{});
-
-	glz::write_file_csv(hard_chart_stand, "hard_chart_stand.csv", std::string{});
-
-	glz::write_file_csv(soft_chart_hit, "soft_chart_hit.csv", std::string{});
-
-	glz::write_file_csv(soft_chart_double, "soft_chart_double.csv", std::string{});
-
-	glz::write_file_csv(soft_chart_stand, "soft_chart_stand.csv", std::string{});
-	
-	
+	std::cout << "this program finished in " << time_spent << std::endl;
 	return 0;
 }

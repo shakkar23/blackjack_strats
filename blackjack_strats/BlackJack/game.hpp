@@ -97,7 +97,6 @@ namespace BlackJack {
 				// skip all natural blackjacks
 				if (score_hand(player_hands[player_iter][0]) == 21) {
 					natural_blackjack[player_iter] = true;
-					continue;
 				}
 				play_player_hands(player_hands, player_bets, view, player_iter);
 				
@@ -267,6 +266,11 @@ namespace BlackJack {
 			shoe.shuffle(rng);
 			stats.reset();
 		}
+
+		inline void randomize_players() {
+			std::ranges::shuffle(players, rng);
+		}
+
 	private:
 		Deck shoe;
 		std::vector<player_variant> players;

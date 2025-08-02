@@ -34,6 +34,11 @@ namespace BlackJack {
 			else
 				std::get<datum>(data.back()) = datum{ view.true_count(), view.dealer_upcard, player_hand };
 
+			int score = score_hand(player_hand);
+			if (score == 21) {
+				return Action::Stand;
+			}
+
 			return Action::DoubleDown;
 		}
 
