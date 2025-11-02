@@ -1,4 +1,4 @@
-
+#pragma once
 
 namespace BlackJack {
 	struct standard_game_rules {

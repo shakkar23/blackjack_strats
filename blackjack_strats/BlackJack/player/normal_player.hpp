@@ -3,9 +3,10 @@
 #include "../hand.hpp"
 #include "game_view.hpp"
 #include "../value/hand_scoring.hpp"
+#include "../game_rules.hpp"
 
 namespace BlackJack {
-	template <typename game_rules>
+	template <typename game_rules = BlackJack::standard_game_rules>
 	struct normal_player {
 		int get_bet_amount() const {
 			return 10; // Fixed bet amount for simplicity

@@ -23,7 +23,7 @@
 #include <source_location>
 
 namespace BlackJack {
-	template <typename game_rules>
+	template <typename game_rules = BlackJack::standard_game_rules>
 	struct game {
 		using player_variant = std::variant<
 			random_player<game_rules>, 

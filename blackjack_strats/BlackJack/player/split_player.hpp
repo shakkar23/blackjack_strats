@@ -5,9 +5,10 @@
 #include "game_view.hpp"
 #include "../value/hand_scoring.hpp"
 #include "../value/hilo.hpp"
+#include "../game_rules.hpp"
 
 namespace BlackJack {
-	template <typename game_rules>
+	template <typename game_rules = BlackJack::standard_game_rules>
 	struct split_player {
 
 		struct datum {
